@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
-import 'screens/main_shell.dart';
+import 'services/fitness_service.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService().init();
+  await FitnessService().init();
   runApp(const FitSphereApp());
 }
 
@@ -13,11 +17,14 @@ class FitSphereApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'FitSphere',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
-      home: const SplashScreen(),
+    return ChangeNotifierProvider<FitnessService>.value(
+      value: FitnessService(),
+      child: MaterialApp(
+        title: 'FitSphere',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.theme,
+        home: const SplashScreen(),
+      ),
     );
   }
 }
