@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:async';
 import '../theme/app_theme.dart';
 
 class HiitScreen extends StatefulWidget {
@@ -10,101 +10,181 @@ class HiitScreen extends StatefulWidget {
   State<HiitScreen> createState() => _HiitScreenState();
 }
 
-class _HiitScreenState extends State<HiitScreen> {
-  int _currentExercise = 0;
-  bool _isRunning = false;
-  bool _isResting = false;
-  int _secondsLeft = 40;
-  Timer? _timer;
+class _HiitScreenState extends State<HiitScreen>
+    with SingleTickerProviderStateMixin {
+  // ── HIIT config ────────────────────────────────────────────────────────────
+  static const int _workSeconds = 40;
+  static const int _restSeconds = 20;
+  static const int _rounds = 3;
 
-  final List<Map<String, dynamic>> exercises = [
-    {
-      'name': 'Jumping Jacks',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '⭐',
-      'desc': 'Full body warm up',
-    },
-    {
-      'name': 'Burpees',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '🔥',
-      'desc': 'Full body explosive move',
-    },
-    {
-      'name': 'High Knees',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '🦵',
-      'desc': 'Cardio & core engagement',
-    },
-    {
-      'name': 'Mountain Climbers',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '⚡',
-      'desc': 'Core & upper body',
-    },
-    {
-      'name': 'Jump Squats',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '💥',
-      'desc': 'Lower body power',
-    },
-    {
-      'name': 'Push Ups',
-      'duration': 40,
-      'rest': 20,
-      'emoji': '💪',
-      'desc': 'Upper body strength',
-    },
+  final List<Map<String, dynamic>> _exercises = const [
+    {'name': 'Jumping Jacks', 'emoji': '⭐', 'desc': 'Full body warm up'},
+    {'name': 'Burpees', 'emoji': '🔥', 'desc': 'Full body explosive move'},
+    {'name': 'High Knees', 'emoji': '🦵', 'desc': 'Cardio and core'},
+    {'name': 'Mountain Climbers', 'emoji': '⚡', 'desc': 'Core and upper body'},
+    {'name': 'Jump Squats', 'emoji': '💥', 'desc': 'Lower body power'},
+    {'name': 'Push Ups', 'emoji': '💪', 'desc': 'Upper body strength'},
   ];
 
-  void _startTimer() {
-    setState(() => _isRunning = true);
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_secondsLeft > 0) {
-          _secondsLeft--;
-        } else {
-          if (_isResting) {
-            // Rest done — move to next exercise
-            _isResting = false;
-            if (_currentExercise < exercises.length - 1) {
-              _currentExercise++;
-              _secondsLeft =
-                  exercises[_currentExercise]['duration'] as int;
-            } else {
-              // Workout complete
-              _timer?.cancel();
-              _isRunning = false;
-              _showCompleteDialog();
-            }
-          } else {
-            // Exercise done — start rest
-            _isResting = true;
-            _secondsLeft = exercises[_currentExercise]['rest'] as int;
-          }
-        }
-      });
+  // ── State ─────────────────────────────────────────────────────────────────
+  int _currentExercise = 0;
+  int _currentRound = 1;
+  bool _isResting = false;
+  bool _isRunning = false;
+  bool _isFinished = false;
+  bool _isCountingDown = false;
+  int _secondsLeft = 3; // countdown before start
+  Timer? _timer;
+  int _totalCalories = 0;
+  int _completedExercises = 0;
+
+  late AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  void _startCountdown() {
+    setState(() {
+      _isCountingDown = true;
+      _secondsLeft = 3;
+    });
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 1) {
+        _timer?.cancel();
+        setState(() => _isCountingDown = false);
+        _beginWorkInterval();
+      } else {
+        setState(() => _secondsLeft--);
+      }
     });
   }
 
-  void _pauseTimer() {
+  void _beginWorkInterval() {
+    setState(() {
+      _isResting = false;
+      _isRunning = true;
+      _secondsLeft = _workSeconds;
+    });
+    _pulseCtrl.repeat(reverse: true);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 0) {
+        _completedExercises++;
+        _totalCalories += 8;
+        _beginRestInterval();
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  void _beginRestInterval() {
     _timer?.cancel();
+    _pulseCtrl.stop();
+
+    // Check if we've completed all exercises in this round
+    if (_currentExercise >= _exercises.length - 1) {
+      if (_currentRound >= _rounds) {
+        // All rounds done
+        _onFinish();
+        return;
+      } else {
+        // Next round
+        setState(() {
+          _currentRound++;
+          _currentExercise = 0;
+        });
+      }
+    } else {
+      setState(() => _currentExercise++);
+    }
+
+    setState(() {
+      _isResting = true;
+      _secondsLeft = _restSeconds;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 0) {
+        _beginWorkInterval();
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  void _pause() {
+    _timer?.cancel();
+    _pulseCtrl.stop();
     setState(() => _isRunning = false);
   }
 
-  void _resetTimer() {
+  void _resume() {
+    _pulseCtrl.repeat(reverse: true);
+    setState(() => _isRunning = true);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 0) {
+        if (_isResting) {
+          _beginWorkInterval();
+        } else {
+          _completedExercises++;
+          _totalCalories += 8;
+          _beginRestInterval();
+        }
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  void _skip() {
     _timer?.cancel();
+    if (_isResting) {
+      _beginWorkInterval();
+    } else {
+      _completedExercises++;
+      _totalCalories += 4;
+      _beginRestInterval();
+    }
+  }
+
+  void _reset() {
+    _timer?.cancel();
+    _pulseCtrl.stop();
+    setState(() {
+      _currentExercise = 0;
+      _currentRound = 1;
+      _isResting = false;
+      _isRunning = false;
+      _isFinished = false;
+      _isCountingDown = false;
+      _secondsLeft = _workSeconds;
+      _totalCalories = 0;
+      _completedExercises = 0;
+    });
+  }
+
+  void _onFinish() {
+    _timer?.cancel();
+    _pulseCtrl.stop();
     setState(() {
       _isRunning = false;
-      _isResting = false;
-      _currentExercise = 0;
-      _secondsLeft = exercises[0]['duration'] as int;
+      _isFinished = true;
     });
+    _showCompleteDialog();
   }
 
   void _showCompleteDialog() {
@@ -113,66 +193,69 @@ class _HiitScreenState extends State<HiitScreen> {
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.darkCard,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('🎉', style: TextStyle(fontSize: 48),
-            textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Workout Complete!',
-                style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text('Great job! You burned approx. 280 kcal',
-                style: GoogleFonts.poppins(
-                    color: Colors.white54, fontSize: 13),
-                textAlign: TextAlign.center),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _resetTimer();
-            },
-            child: Text('Do Again',
-                style: GoogleFonts.poppins(color: AppTheme.orange)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.orange,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🔥', style: TextStyle(fontSize: 52)),
+          const SizedBox(height: 12),
+          Text('HIIT Complete!',
+              style: GoogleFonts.poppins(
+                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 22),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text('$_rounds rounds • ${_exercises.length} exercises',
+              style: GoogleFonts.poppins(color: Colors.white54, fontSize: 13)),
+          const SizedBox(height: 16),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _StatPill(label: 'Rounds', value: '$_rounds', color: AppTheme.orange),
+            _StatPill(label: 'Calories', value: '~$_totalCalories', color: AppTheme.accent),
+            _StatPill(label: 'Exercises', value: '$_completedExercises', color: AppTheme.green),
+          ]),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
+              ),
+              child: Text('Done',
+                  style: GoogleFonts.poppins(
+                      color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
             ),
-            child: Text('Done',
-                style: GoogleFonts.poppins(color: Colors.white)),
           ),
-        ],
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: () { Navigator.pop(context); _reset(); },
+            child: Text('Do Again',
+                style: GoogleFonts.poppins(color: Colors.white38, fontSize: 13)),
+          ),
+        ]),
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  String get _timeDisplay {
+    final s = _secondsLeft;
+    return s.toString().padLeft(2, '0');
   }
 
+  double get _timerProgress {
+    final total = _isResting ? _restSeconds : _workSeconds;
+    return (_secondsLeft / total).clamp(0.0, 1.0);
+  }
+
+  int get _totalExercisesCount => _exercises.length * _rounds;
+  int get _doneCount =>
+      (_currentRound - 1) * _exercises.length + _currentExercise;
+
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final exercise = exercises[_currentExercise];
-    final totalDuration = _isResting
-        ? exercise['rest'] as int
-        : exercise['duration'] as int;
-    final progress = _secondsLeft / totalDuration;
+    final exercise = _exercises[_currentExercise];
 
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
@@ -181,21 +264,18 @@ class _HiitScreenState extends State<HiitScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
           onPressed: () {
-            _timer?.cancel();
-            Navigator.pop(context);
+            if (_isRunning) _pause();
+            _showExitDialog();
           },
         ),
-        title: Text(
-          'HIIT',
-          style: GoogleFonts.poppins(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18),
-        ),
+        title: Text('HIIT',
+            style: GoogleFonts.poppins(
+                color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18)),
         actions: [
           TextButton(
-            onPressed: _resetTimer,
+            onPressed: _reset,
             child: Text('Reset',
-                style:
-                    GoogleFonts.poppins(color: AppTheme.orange, fontSize: 13)),
+                style: GoogleFonts.poppins(color: Colors.white38, fontSize: 13)),
           ),
         ],
         elevation: 0,
@@ -204,245 +284,325 @@ class _HiitScreenState extends State<HiitScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Progress indicator row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: exercises.asMap().entries.map((e) {
-                final done = e.key < _currentExercise;
-                final current = e.key == _currentExercise;
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: current ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: done
-                        ? AppTheme.green
-                        : current
-                            ? AppTheme.orange
-                            : AppTheme.darkCardLight,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                );
-              }).toList(),
+            // Round + overall progress
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Round $_currentRound / $_rounds',
+                  style: GoogleFonts.poppins(
+                      color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+              Text('$_doneCount / $_totalExercisesCount exercises',
+                  style: GoogleFonts.poppins(color: Colors.white38, fontSize: 12)),
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _doneCount / _totalExercisesCount,
+                backgroundColor: AppTheme.darkCardLight,
+                valueColor: AlwaysStoppedAnimation(AppTheme.orange),
+                minHeight: 6,
+              ),
             ),
             const SizedBox(height: 8),
-            Text(
-              '${_currentExercise + 1} / ${exercises.length}',
-              style: GoogleFonts.poppins(
-                  color: Colors.white38, fontSize: 12),
+
+            // Round dots
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_rounds, (i) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: i + 1 < _currentRound ? 10 : i + 1 == _currentRound ? 20 : 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: i + 1 < _currentRound
+                      ? AppTheme.green
+                      : i + 1 == _currentRound
+                          ? AppTheme.orange
+                          : AppTheme.darkCardLight,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              )),
             ),
             const SizedBox(height: 24),
 
-            // Phase label
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: _isResting
-                    ? AppTheme.teal.withOpacity(0.2)
-                    : AppTheme.orange.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _isResting ? '😮‍💨 REST' : '🔥 WORK',
-                style: GoogleFonts.poppins(
-                  color: _isResting ? AppTheme.teal : AppTheme.orange,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  letterSpacing: 1,
+            // Phase badge
+            if (!_isCountingDown)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isResting
+                      ? AppTheme.teal.withOpacity(0.2)
+                      : AppTheme.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: Text(
+                  _isResting ? '😮‍💨  REST' : '🔥  WORK',
+                  style: GoogleFonts.poppins(
+                    color: _isResting ? AppTheme.teal : AppTheme.orange,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 20),
+
+            // Timer ring
+            AnimatedBuilder(
+              animation: _pulseCtrl,
+              builder: (_, __) => Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (_isRunning && !_isResting)
+                    Container(
+                      width: 215 + (7 * _pulseCtrl.value),
+                      height: 215 + (7 * _pulseCtrl.value),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.orange.withOpacity(0.04 * _pulseCtrl.value),
+                      ),
+                    ),
+                  SizedBox(
+                    width: 200, height: 200,
+                    child: CircularProgressIndicator(
+                      value: _isCountingDown ? 1.0 : _timerProgress,
+                      strokeWidth: 12,
+                      backgroundColor: AppTheme.darkCardLight,
+                      valueColor: AlwaysStoppedAnimation(
+                        _isFinished
+                            ? AppTheme.green
+                            : _isCountingDown
+                                ? Colors.white54
+                                : _isResting
+                                    ? AppTheme.teal
+                                    : AppTheme.orange,
+                      ),
+                      strokeCap: StrokeCap.round,
+                    ),
+                  ),
+                  Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_isCountingDown)
+                      Text(_secondsLeft.toString(),
+                          style: GoogleFonts.poppins(
+                              color: Colors.white, fontSize: 72,
+                              fontWeight: FontWeight.w800))
+                    else ...[
+                      Text(exercise['emoji'] as String,
+                          style: const TextStyle(fontSize: 32)),
+                      const SizedBox(height: 4),
+                      Text(_timeDisplay,
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 64,
+                              fontWeight: FontWeight.w800)),
+                      Text(
+                        _isResting ? 'seconds rest' : 'seconds',
+                        style: GoogleFonts.poppins(
+                            color: Colors.white38, fontSize: 13),
+                      ),
+                    ],
+                  ]),
+                ],
               ),
             ),
             const SizedBox(height: 20),
 
-            // Timer circle
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 200,
-                  height: 200,
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 12,
-                    backgroundColor: AppTheme.darkCardLight,
-                    valueColor: AlwaysStoppedAnimation(
-                      _isResting ? AppTheme.teal : AppTheme.orange,
-                    ),
-                    strokeCap: StrokeCap.round,
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      exercise['emoji'] as String,
-                      style: const TextStyle(fontSize: 36),
-                    ),
-                    Text(
-                      '$_secondsLeft',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 52,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      'seconds',
-                      style: GoogleFonts.poppins(
-                          color: Colors.white38, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             // Exercise name
-            Text(
-              _isResting ? 'Rest' : exercise['name'] as String,
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
+            if (!_isCountingDown) ...[
+              Text(
+                _isResting ? 'Rest' : exercise['name'] as String,
+                style: GoogleFonts.poppins(
+                    color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _isResting
-                  ? 'Catch your breath'
-                  : exercise['desc'] as String,
-              style: GoogleFonts.poppins(
-                  color: Colors.white54, fontSize: 13),
-            ),
-            const SizedBox(height: 28),
+              const SizedBox(height: 4),
+              Text(
+                _isResting
+                    ? 'Get ready for: ${_exercises[_currentExercise]['name']}'
+                    : exercise['desc'] as String,
+                style: GoogleFonts.poppins(color: Colors.white54, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+            ] else ...[
+              Text('Get Ready!',
+                  style: GoogleFonts.poppins(
+                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('Starting ${exercise['name']}',
+                  style: GoogleFonts.poppins(color: Colors.white54, fontSize: 13)),
+              const SizedBox(height: 24),
+            ],
 
             // Controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: _resetTimer,
-                  child: Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: AppTheme.darkCard,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.replay_rounded,
-                        color: Colors.white60, size: 24),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                GestureDetector(
-                  onTap: _isRunning ? _pauseTimer : _startTimer,
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppTheme.orange,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.orange.withOpacity(0.4),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isRunning ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 36,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                GestureDetector(
-                  onTap: () {
-                    _timer?.cancel();
-                    setState(() {
-                      _isResting = false;
-                      if (_currentExercise < exercises.length - 1) {
-                        _currentExercise++;
-                        _secondsLeft =
-                            exercises[_currentExercise]['duration'] as int;
-                        if (_isRunning) _startTimer();
-                      }
-                    });
-                  },
-                  child: Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: AppTheme.darkCard,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.skip_next_rounded,
-                        color: Colors.white60, size: 24),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-
-            // Upcoming exercises
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Up Next',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _ControlBtn(
+                icon: Icons.replay_rounded,
+                color: AppTheme.darkCard,
+                iconColor: Colors.white54,
+                size: 52,
+                onTap: _reset,
               ),
-            ),
-            const SizedBox(height: 10),
-            ...exercises
-                .asMap()
-                .entries
-                .where((e) => e.key > _currentExercise)
-                .take(3)
-                .map((e) {
-              final ex = e.value;
-              return Padding(
+              const SizedBox(width: 16),
+              _ControlBtn(
+                icon: _isCountingDown
+                    ? Icons.hourglass_top_rounded
+                    : _isRunning
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                color: _isFinished ? AppTheme.darkCardLight : AppTheme.orange,
+                iconColor: Colors.white,
+                size: 70,
+                shadow: !_isFinished,
+                onTap: _isFinished
+                    ? null
+                    : _isCountingDown
+                        ? null
+                        : _isRunning
+                            ? _pause
+                            : _isRunning == false && _secondsLeft == _workSeconds && _currentExercise == 0 && _currentRound == 1
+                                ? _startCountdown
+                                : _resume,
+              ),
+              const SizedBox(width: 16),
+              _ControlBtn(
+                icon: Icons.skip_next_rounded,
+                color: AppTheme.darkCard,
+                iconColor: Colors.white54,
+                size: 52,
+                onTap: _isCountingDown || _isFinished ? null : _skip,
+              ),
+            ]),
+            const SizedBox(height: 24),
+
+            // Up next
+            if (!_isFinished && !_isCountingDown) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Up Next',
+                    style: GoogleFonts.poppins(
+                        color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(height: 10),
+              ..._exercises
+                  .asMap()
+                  .entries
+                  .where((e) => e.key > _currentExercise)
+                  .take(3)
+                  .map((e) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: AppTheme.darkCard,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    children: [
-                      Text(ex['emoji'] as String,
-                          style: const TextStyle(fontSize: 22)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          ex['name'] as String,
+                  child: Row(children: [
+                    Text(e.value['emoji'] as String,
+                        style: const TextStyle(fontSize: 22)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(e.value['name'] as String,
                           style: GoogleFonts.poppins(
-                              color: Colors.white60,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                      Text(
-                        '${ex['duration']}s',
+                              color: Colors.white60, fontSize: 13,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                    Text('${_workSeconds}s',
                         style: GoogleFonts.poppins(
-                            color: AppTheme.orange, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                            color: AppTheme.orange, fontSize: 12)),
+                  ]),
                 ),
-              );
-            }),
+              )),
+            ],
+
+            // Stats
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _MiniStat(label: 'Calories', value: '~$_totalCalories kcal', color: AppTheme.accent)),
+              const SizedBox(width: 10),
+              Expanded(child: _MiniStat(label: 'Completed', value: '$_completedExercises sets', color: AppTheme.green)),
+            ]),
           ],
         ),
       ),
     );
   }
+
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.darkCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Leave Workout?',
+            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
+        content: Text('Your progress will be lost.',
+            style: GoogleFonts.poppins(color: Colors.white54, fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (!_isFinished) _resume();
+            },
+            child: Text('Keep Going',
+                style: GoogleFonts.poppins(
+                    color: AppTheme.orange, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: Text('Leave',
+                style: GoogleFonts.poppins(color: Colors.white38)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlBtn extends StatelessWidget {
+  final IconData icon; final Color color; final Color iconColor;
+  final double size; final VoidCallback? onTap; final bool shadow;
+  const _ControlBtn({required this.icon, required this.color, required this.iconColor, required this.size, required this.onTap, this.shadow = false});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: size, height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: onTap == null ? color.withOpacity(0.4) : color,
+        boxShadow: shadow ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 16, spreadRadius: 2)] : null,
+      ),
+      child: Icon(icon, color: onTap == null ? iconColor.withOpacity(0.4) : iconColor, size: size * 0.45),
+    ),
+  );
+}
+
+class _StatPill extends StatelessWidget {
+  final String label; final String value; final Color color;
+  const _StatPill({required this.label, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Text(value, style: GoogleFonts.poppins(color: color, fontSize: 20, fontWeight: FontWeight.w700)),
+    Text(label, style: GoogleFonts.poppins(color: Colors.white54, fontSize: 11)),
+  ]);
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label; final String value; final Color color;
+  const _MiniStat({required this.label, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: AppTheme.darkCard, borderRadius: BorderRadius.circular(12)),
+    child: Row(children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+      const SizedBox(width: 8),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value, style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(label, style: GoogleFonts.poppins(color: Colors.white38, fontSize: 11)),
+      ]),
+    ]),
+  );
 }

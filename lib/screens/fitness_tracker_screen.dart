@@ -101,7 +101,7 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                     border: Border.all(color: AppTheme.yellow.withOpacity(0.4)),
                   ),
                   child: Row(children: [
-                    Icon(Icons.info_outline, color: AppTheme.yellow, size: 18),
+                    const Icon(Icons.info_outline, color: AppTheme.yellow, size: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -253,11 +253,11 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                       getTitlesWidget: (v, _) => Text('${v.toInt()}h',
                           style: GoogleFonts.poppins(color: Colors.white38, fontSize: 9)),
                     )),
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
-                  gridData: FlGridData(show: false),
+                  gridData: const FlGridData(show: false),
                   borderData: FlBorderData(show: false),
                   barGroups: List.generate(24, (i) {
                     final steps = svc.hourlySteps[i].toDouble();
@@ -292,12 +292,7 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                   minY: 0,
                   maxY: (svc.stepGoal * 1.3),
                   lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (_) => AppTheme.darkCardLight,
-                      getTooltipItems: (spots) => spots.map((s) =>
-                        LineTooltipItem('${s.y.toInt()} steps',
-                            GoogleFonts.poppins(color: Colors.white, fontSize: 11))).toList(),
-                    ),
+                    touchTooltipData: const LineTouchTooltipData(),
                   ),
                   titlesData: FlTitlesData(
                     bottomTitles: AxisTitles(sideTitles: SideTitles(
@@ -310,14 +305,14 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                             : const Text('');
                       },
                     )),
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   gridData: FlGridData(
                     show: true, drawVerticalLine: false,
                     horizontalInterval: svc.stepGoal / 3,
-                    getDrawingHorizontalLine: (_) => FlLine(color: AppTheme.darkCardLight, strokeWidth: 1),
+                    getDrawingHorizontalLine: (_) => const FlLine(color: AppTheme.darkCardLight, strokeWidth: 1),
                   ),
                   borderData: FlBorderData(show: false),
                   lineBarsData: [
@@ -328,7 +323,7 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                       color: AppTheme.green.withOpacity(0.45),
                       barWidth: 1.5,
                       dashArray: [5, 5],
-                      dotData: FlDotData(show: false),
+                      dotData: const FlDotData(show: false),
                     ),
                     // Actual steps
                     LineChartBarData(
@@ -382,7 +377,7 @@ class _FitnessTrackerScreenState extends State<FitnessTrackerScreen>
                     child: LinearProgressIndicator(
                       value: (svc.caloriesBurned / svc.caloriesConsumed).clamp(0.0, 1.0),
                       backgroundColor: AppTheme.darkCardLight,
-                      valueColor: AlwaysStoppedAnimation(AppTheme.teal),
+                      valueColor: const AlwaysStoppedAnimation(AppTheme.teal),
                       minHeight: 8,
                     ),
                   ),
